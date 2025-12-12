@@ -11,9 +11,10 @@ fn count_surrounding_paper(grid: &[Vec<GridSpot>], point: (usize, usize)) -> usi
     let mut count = 0;
     for d in util::Direction::directions() {
         if let Some((nx, ny)) = d.neighbor(point, grid.len(), grid[0].len())
-            && grid[nx][ny] != GridSpot::Empty {
-                count += 1;
-            }
+            && grid[nx][ny] != GridSpot::Empty
+        {
+            count += 1;
+        }
     }
     count
 }
