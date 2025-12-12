@@ -1,6 +1,17 @@
 [package]
 name = "aoc-2025"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+
+[[bin]]
+name = "day01"
+path = "src/day01.rs"
 
 [dependencies]
+anyhow = "1.0"
+
+[profile.dev]
+opt-level = 1  # Use slightly better optimizations.
+
+[profile.release]
+debug = true
