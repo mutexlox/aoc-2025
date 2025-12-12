@@ -113,25 +113,29 @@ impl UnionFind {
 }
 
 // returns product of size of three largest circuits after |steps|
+// and product of x-coordinates of last edge added
 fn run_steps_of_kruskal(
     verts: &[Node],
     edges: &mut BinaryHeap<Edge>,
     steps: usize,
-) -> (usize, HashSet<Edge>) {
+) -> (usize, i64) {
     let mut uf = UnionFind::new(verts);
     let mut i = 0;
     let mut forest = HashSet::new();
+    let mut size = 0;
+    let mut last_added = 0;
     while let Some(e) = edges.pop() {
         if i == steps {
-            break;
+            size = uf.product_of_largest_n();
         }
         if uf.find(&e.a).unwrap() != uf.find(&e.b).unwrap() {
             forest.insert(e);
+            last_added = e.a.0 * e.b.0;
             uf.union(&e.a, &e.b).unwrap();
         }
         i += 1;
     }
-    (uf.product_of_largest_n(), forest)
+    (size, last_added)
 }
 
 fn main() {
@@ -150,6 +154,7 @@ fn main() {
             edges.push(Edge { a: v, b, });
         }
     }
-    let (p, _forest) = run_steps_of_kruskal(&verts, &mut edges, 1000);
+    let (p, last_added) = run_steps_of_kruskal(&verts, &mut edges, 1000);
     println!("{}", p);
+    println!("{}", last_added);
 }
