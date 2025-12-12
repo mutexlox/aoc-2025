@@ -1,23 +1,42 @@
 use aoc_2025::util;
 use itertools::Itertools;
+use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::BinaryHeap;
+use std::rc::Rc;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-struct Node(i64, i64, i64);
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Node {
+    x: i64,
+    y: i64,
+    z: i64,
+    parent: Option<Rc<RefCell<Node>>>,
+    size: usize,
+}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+impl Node {
+    fn new(x: i64, y: i64, z: i64) -> Self {
+        Self {
+            x,
+            y,
+            z,
+            parent: None,
+            size: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Edge {
-    a: Node,
-    b: Node,
+    a: Rc<RefCell<Node>>,
+    b: Rc<RefCell<Node>>,
 }
 
 impl Edge {
     fn dist(&self) -> f64 {
-        (((self.a.0 - self.b.0).pow(2)
-            + (self.a.1 - self.b.1).pow(2)
-            + (self.a.2 - self.b.2).pow(2)) as f64)
-            .sqrt()
+        let a = self.a.borrow();
+        let b = self.b.borrow();
+        (((a.x - b.x).pow(2) + (a.y - b.y).pow(2) + (a.z - b.z).pow(2)) as f64).sqrt()
     }
 }
 
@@ -34,104 +53,67 @@ impl PartialOrd for Edge {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-struct UnionFindNode {
-    parent: Node,
-    this: Node,
-    size: usize,
-}
-
-impl UnionFindNode {
-    fn new(node: &Node) -> UnionFindNode {
-        Self {
-            parent: *node,
-            this: *node,
-            size: 1,
-        }
+fn find(node: Rc<RefCell<Node>>) -> Rc<RefCell<Node>> {
+    let parent = { node.borrow().parent.clone() };
+    if let Some(parent) = parent {
+        let parent = find(parent.clone());
+        node.borrow_mut().parent = Some(parent.clone());
+        parent
+    } else {
+        node
     }
 }
 
-struct UnionFind {
-    nodes: HashMap<Node, UnionFindNode>,
+// Returns true if we merged them; false if already the same set
+fn union(a: Rc<RefCell<Node>>, b: Rc<RefCell<Node>>) -> bool {
+    let mut a = find(a);
+    let mut b = find(b);
+
+    if a == b {
+        return false;
+    }
+
+    if a.borrow().size < b.borrow().size {
+        (a, b) = (b, a);
+    }
+
+    b.borrow_mut().parent = Some(a.clone());
+    a.borrow_mut().size += b.borrow().size;
+    true
 }
 
-impl UnionFind {
-    fn new(nodes: &[Node]) -> UnionFind {
-        let mut union_find = HashMap::new();
-        for n in nodes {
-            union_find.insert(*n, UnionFindNode::new(n));
-        }
-        Self { nodes: union_find }
-    }
-
-    fn find(&mut self, node: &Node) -> Option<Node> {
-        let uf_node = *self.nodes.get(node)?;
-        if uf_node.parent != *node {
-            let parent = self.find(&uf_node.parent)?;
-            self.nodes.get_mut(node)?.parent = parent;
-            return Some(parent);
-        }
-        Some(uf_node.this)
-    }
-
-    // Returns Some(true) if we merged them; Some(false) if already the same set
-    fn union(&mut self, a: &Node, b: &Node) -> Option<bool> {
-        let mut a = self.find(a)?;
-        let mut b = self.find(b)?;
-        let mut uf_a = self.nodes[&a];
-        let mut uf_b = self.nodes[&b];
-
-        if uf_a == uf_b {
-            return Some(false);
-        }
-
-        if uf_a.size < uf_b.size {
-            (a, b) = (b, a);
-            (uf_a, uf_b) = (uf_b, uf_a);
-        }
-
-        self.nodes.get_mut(&b)?.parent = uf_a.this;
-        self.nodes.get_mut(&a)?.size += uf_b.size;
-        Some(true)
-    }
-
-    fn product_of_largest_n(&mut self) -> usize {
-        let nodes = self.nodes.keys().cloned().collect::<Vec<_>>();
-        nodes
-            .iter()
-            .map(|n| {
-                let r = self.find(n).unwrap();
-                self.nodes[&r]
-            })
-            .unique()
-            .map(|n| n.size)
-            .sorted()
-            .rev()
-            .take(3)
-            .product()
-    }
+fn product_of_largest_n(nodes: &[Rc<RefCell<Node>>], n: usize) -> usize {
+    nodes
+        .iter()
+        .map(|n| find(n.clone()))
+        .unique_by(|n| {
+            let n = n.borrow();
+            (n.x, n.y, n.z)
+        })
+        .map(|n| n.borrow().size)
+        .sorted()
+        .rev()
+        .take(n)
+        .product()
 }
 
 // returns product of size of three largest circuits after |steps|
 // and product of x-coordinates of last edge added
 fn run_steps_of_kruskal(
-    verts: &[Node],
+    verts: &[Rc<RefCell<Node>>],
     edges: &mut BinaryHeap<Edge>,
     steps: usize,
 ) -> (usize, i64) {
-    let mut uf = UnionFind::new(verts);
     let mut i = 0;
-    let mut forest = HashSet::new();
     let mut size = 0;
     let mut last_added = 0;
     while let Some(e) = edges.pop() {
         if i == steps {
-            size = uf.product_of_largest_n();
+            size = product_of_largest_n(verts, 3);
         }
-        if uf.find(&e.a).unwrap() != uf.find(&e.b).unwrap() {
-            forest.insert(e);
-            last_added = e.a.0 * e.b.0;
-            uf.union(&e.a, &e.b).unwrap();
+        if find(e.a.clone()) != find(e.b.clone()) {
+            last_added = e.a.borrow().x * e.b.borrow().x;
+            union(e.a, e.b);
         }
         i += 1;
     }
@@ -146,12 +128,17 @@ fn main() {
             .map(|s| s.parse::<i64>().unwrap())
             .collect::<Vec<_>>();
         assert_eq!(coords.len(), 3);
-        verts.push(Node(coords[0], coords[1], coords[2]));
+        verts.push(Rc::new(RefCell::new(Node::new(
+            coords[0], coords[1], coords[2],
+        ))));
     }
     let mut edges = BinaryHeap::new();
-    for (i, &v) in verts.iter().enumerate() {
-        for &b in verts.iter().skip(i + 1) {
-            edges.push(Edge { a: v, b, });
+    for (i, v) in verts.iter().enumerate() {
+        for b in verts.iter().skip(i + 1) {
+            edges.push(Edge {
+                a: v.clone(),
+                b: b.clone(),
+            });
         }
     }
     let (p, last_added) = run_steps_of_kruskal(&verts, &mut edges, 1000);
