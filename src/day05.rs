@@ -4,14 +4,7 @@ use std::ops::RangeInclusive;
 fn count_fresh(ranges: &[RangeInclusive<i64>], nums: &[i64]) -> usize {
     let mut count = 0;
     for n in nums {
-        let mut works = false;
-        for r in ranges {
-            if r.contains(n) {
-                works = true;
-                break;
-            }
-        }
-        if works {
+        if ranges.iter().any(|r| r.contains(n)) {
             count += 1;
         }
     }
