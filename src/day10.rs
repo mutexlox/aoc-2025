@@ -1,5 +1,9 @@
 use aoc_2025::util;
 use bitvec::prelude as bitvec;
+use good_lp::{
+    Expression, ProblemVariables, Solution, SolverModel, Variable, constraint, default_solver,
+    variable,
+};
 use regex::Regex;
 use std::collections::HashSet;
 
@@ -7,7 +11,7 @@ use std::collections::HashSet;
 struct Problem {
     goal: bitvec::BitVec,
     buttons: Vec<bitvec::BitVec>,
-    joltages: Vec<usize>,
+    joltages: Vec<i32>,
 }
 
 fn min_steps_for_goal(problem: &Problem) -> usize {
@@ -38,6 +42,32 @@ fn min_steps_for_goal(problem: &Problem) -> usize {
 
 fn sum_required_steps(problems: &[Problem]) -> usize {
     problems.iter().map(min_steps_for_goal).sum()
+}
+
+fn min_presses_for_joltages(problem: &Problem) -> i64 {
+    let vars = vec![variable().integer().min(0); problem.buttons.len()];
+    let mut problem_var = ProblemVariables::new();
+    let v: Vec<Variable> = problem_var.add_all(vars);
+
+    let objective: Expression = v.iter().sum();
+    let mut model = problem_var.minimise(objective).using(default_solver);
+
+    for i in 0..problem.joltages.len() {
+        let vi: Expression = v
+            .iter()
+            .zip(problem.buttons.iter())
+            .map(|(v, b)| *v * (b[i] as i32))
+            .sum();
+        model = model.with(constraint!(vi == problem.joltages[i]));
+    }
+
+    let solution = model.solve().unwrap();
+
+    solution.eval(v.iter().sum::<Expression>()) as i64
+}
+
+fn sum_required_presses(problems: &[Problem]) -> i64 {
+    problems.iter().map(min_presses_for_joltages).sum()
 }
 
 fn main() {
@@ -76,7 +106,7 @@ fn main() {
 
         let joltages = joltages
             .split(",")
-            .map(|s| s.parse::<usize>().unwrap())
+            .map(|s| s.parse::<i32>().unwrap())
             .collect::<Vec<_>>();
         problems.push(Problem {
             goal: goal_vec,
@@ -85,4 +115,5 @@ fn main() {
         });
     }
     println!("{}", sum_required_steps(&problems));
+    println!("{}", sum_required_presses(&problems));
 }

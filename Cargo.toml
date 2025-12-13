@@ -48,6 +48,7 @@ anyhow = "1.0"
 itertools = "0.14.0"
 regex = "1.12"
 bitvec = "1"
+good_lp = "1.14.2"
 
 [profile.dev]
 opt-level = 1  # Use slightly better optimizations.
