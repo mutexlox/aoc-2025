@@ -51,6 +51,7 @@ fn min_presses_for_joltages(problem: &Problem) -> i64 {
 
     let objective: Expression = v.iter().sum();
     let mut model = problem_var.minimise(objective).using(default_solver);
+    model.set_parameter("loglevel", "0");
 
     for i in 0..problem.joltages.len() {
         let vi: Expression = v
